@@ -1,0 +1,24 @@
+import * as dotenv from "dotenv";
+import logger from "./Logger";
+
+const environmentVariables: string[] = [
+    "NODE_ENV",
+    "PORT",
+];
+
+export default function () {
+    logger.info('Initializing Environment Variables...');
+    
+    let success = true;
+
+    dotenv.config({ path: ".env" });
+
+    environmentVariables.forEach((key: string) => {
+        if (!process.env[key]) {
+            logger.error(`Missing environment variable ${key}`);
+            success = false;
+        }
+    });
+
+    return success;
+}
