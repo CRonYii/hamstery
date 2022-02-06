@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-import logger from "./Logger";
+import logger from "./Logger.js";
 
 const environmentVariables: string[] = [
     "NODE_ENV",

@@ -1,6 +1,8 @@
-import * as express from 'express';
-import initializeEnv from './utils/Env';
-import logger from "./utils/Logger";
+import express from 'express';
+
+import initializeEnv from './utils/Env.js';
+import { initializeDatabase } from './utils/Database.js';
+import logger from "./utils/Logger.js";
 
 async function startServer() {
     const app = express();
@@ -8,10 +10,12 @@ async function startServer() {
     app.listen(process.env.PORT, () => {
         logger.info(`Hamstery running at port ${process.env.PORT}`);
     });
-}
+};
 
-if (initializeEnv()) {
+(async () => {
+    if (!initializeEnv()) {
+        logger.error(`Server failed to start up: Missing Environment Variable`);
+    }
+    await initializeDatabase();
     startServer();
-} else {
-    logger.error(`Server failed to start up: Missing Environment Variable`);
-}
+})();

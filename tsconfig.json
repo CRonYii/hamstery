@@ -1,7 +1,12 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
-        "target": "es6",
+        "module": "ESNext",
+        "target": "ESNEXT",
+        "moduleResolution": "Node",
+        "lib": [
+            "ES2020"
+        ],
+        "allowSyntheticDefaultImports": true,
         "noImplicitAny": false,
         "sourceMap": true,
         "rootDir": "src",
