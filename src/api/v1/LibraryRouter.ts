@@ -16,14 +16,14 @@ libraryRouter.get('/', (req: Request, res: Response) => {
 
 libraryRouter.post('/', validate([
     body('name')
-    .isString()
-    .isLength({ min: 1 })
-    .custom((name) => {
-        if (LibraryService.get(name) !== null) {
-            throw new Error(`Library '${name}' already exist`);
-        }
-        return true;
-    }),
+        .isString()
+        .isLength({ min: 1 })
+        .custom((name) => {
+            if (LibraryService.get(name) !== null) {
+                throw new Error(`Library '${name}' already exist`);
+            }
+            return true;
+        }),
     body('type').isInt({ min: LibraryType.Show, max: LibraryType.Movie }),
     body('storage').isArray(),
     body('storage.*')
@@ -31,8 +31,10 @@ libraryRouter.post('/', validate([
         .customSanitizer((value) => {
             return path.normalize(value);
         })
-        .custom((dir) => {
-            return isValidDirectory(dir);
+        .custom(async (dir) => {
+            if (!await isValidDirectory(dir))
+                return Promise.reject(`Invalid directory ${dir}`);
+            return true;
         })
 ]), async (req: Request, res: Response) => {
     const { name, type, storage } = req.body;
@@ -72,9 +74,12 @@ libraryRouter.put('/:name', validate([shouldHaveLibrary,
         .customSanitizer((value) => {
             return path.normalize(value);
         })
-        .custom((dir) => {
-            return isValidDirectory(dir);
-        })]),
+        .custom(async (dir) => {
+            if (!await isValidDirectory(dir))
+                return Promise.reject(`Invalid directory ${dir}`);
+            return true;
+        })
+]),
     async (req: Request, res: Response) => {
         const { name } = req.params;
         const { name: newName, storage } = req.body;
