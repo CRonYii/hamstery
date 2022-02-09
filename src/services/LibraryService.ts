@@ -1,8 +1,9 @@
-import * as path from 'path';
+import path from 'path';
+import fs from 'fs';
 
 import { data, save } from '../utils/Database.js'
-import { getSeasonEpisodeLabel, getVideoFiles, isValidDirectory, listDirectory } from '../utils/FileUtil.js';
-import { getTVShowDetails, getTVShowSeason, searchTVShowsAll } from '../utils/TMDB.js';
+import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist } from '../utils/FileUtil.js';
+import { getTVShowDetails, searchTVShowsAll } from '../utils/TMDB.js';
 import { ArrayOp } from './Service.js';
 
 export type LibraryStorage = {
@@ -28,11 +29,13 @@ export type MetaSource = {
     id: string
 };
 
+interface SeasonwMap { [key: string]: Season; };
+
 export type Show = {
     name: string,
     localPath: string,
     metaSource: MetaSource,
-    seasons: Season[]
+    seasons: SeasonwMap
 };
 
 export type Movie = {
@@ -41,13 +44,14 @@ export type Movie = {
     localPath: string,
 };
 
+interface StorageMap { [key: string]: LibraryStorage; };
 interface ShowMap { [key: string]: Show; };
 interface MovieMap { [key: string]: Movie; };
 
 export type Library = {
     name: string,
     type: LibraryType,
-    storage: LibraryStorage[],
+    storage: StorageMap,
 };
 
 const showTitleRegex = /^(.*?) ?\((\d{4})\)$/;
@@ -55,6 +59,7 @@ const showTitleRegex = /^(.*?) ?\((\d{4})\)$/;
 export type LibraryUpdateArgs = {
     name?: string,
     storage?: Array<{ action: ArrayOp; directory: string }>,
+    refresh?: boolean,
 };
 
 const getAll = (): Library[] => {
@@ -88,9 +93,9 @@ const updateShowContents = async (previousContent: ShowMap, contents: ValidConte
         if (source.id == '')
             return null;
         const data = await getTVShowDetails(source.id);
-        const seasons: Season[] = await Promise.all(data.seasons.map(async ({ season_number, episode_count }): Promise<Season> => {
-            const seasonName = season_number == 0 ? 'Specials' : `Season ${season_number}`;
-            const locaFiles = getVideoFiles(await listDirectory(path.resolve(c.localPath, seasonName)));
+        const seasonsArr: Season[] = await Promise.all(data.seasons.map(async ({ season_number, episode_count }): Promise<Season> => {
+            const seasonName = getSeasonFolderName(season_number);
+            const locaFiles = (await listDirectory(path.resolve(c.localPath, seasonName))).filter(isVideoFile);
             return {
                 seasonNumber: season_number,
                 episodes: new Array(episode_count).fill('').map((_, i) => {
@@ -98,7 +103,10 @@ const updateShowContents = async (previousContent: ShowMap, contents: ValidConte
                 })
             };
         }));
-
+        const seasons = {};
+        for (const season of seasonsArr) {
+            seasons[season.seasonNumber] = season;
+        }
         return {
             name: c.name,
             localPath: c.localPath,
@@ -132,30 +140,29 @@ const scanLibrarySingle = async (lib: Library, storage: LibraryStorage) => {
 }
 
 const scanLibraryAll = (lib: Library) => {
-    lib.storage.forEach(l => scanLibrarySingle(lib, l));
+    return Promise.all(Object.values(lib.storage).map(l => scanLibrarySingle(lib, l)));
 }
 
 const libAddDirectory = async (lib: Library, dir: string) => {
-    const i = lib.storage.findIndex((s) => s.directory == dir);
-    if (i != -1)
+    if (lib.storage[dir])
         return;
     const storage = { directory: dir, shows: {} };
-    lib.storage.push(storage);
+    lib.storage[dir] = storage;
 
-    scanLibrarySingle(lib, storage);
+    await scanLibrarySingle(lib, storage);
 }
 
 const libRemoveDirectory = (lib: Library, dir: string) => {
-    const i = lib.storage.findIndex((s) => s.directory == dir);
-    if (i != -1)
-        lib.storage.splice(i, 1);
+    if (!lib.storage[dir])
+        return;
+    delete lib.storage[dir];
 }
 
 const add = async (args: { name: string, type: LibraryType, storage: string[] }) => {
     if (data.libs[args.name]) {
         return;
     }
-    const lib: Library = { name: args.name, type: args.type, storage: [] };
+    const lib: Library = { name: args.name, type: args.type, storage: {} };
 
     for (const s of args.storage) {
         await libAddDirectory(lib, s);
@@ -177,6 +184,9 @@ const update = async (name: string, args: LibraryUpdateArgs) => {
         return;
     }
     const lib: Library = { ...data.libs[name] };
+    if (args.refresh == true) {
+        await scanLibraryAll(lib);
+    }
     if (args.storage) {
         for (const s of args.storage) {
             if (s.action == ArrayOp.Remove) {
@@ -194,11 +204,27 @@ const update = async (name: string, args: LibraryUpdateArgs) => {
     save();
 }
 
+const addEpisodeToShow = async (show: Show, season_number: string, episode_number: string, localPath: string) => {
+    const seasonFolderName = getSeasonFolderName(Number(season_number));
+    const epLabel = getSeasonEpisodeLabel(Number(season_number), Number(episode_number));
+    let filename = path.basename(localPath);
+    if (!filename.includes(epLabel)) {
+        filename = `[${epLabel}] ${filename}`
+    }
+
+    const newPath = path.resolve(show.localPath, seasonFolderName);
+    await createDirIfNotExist(newPath);
+    await fs.promises.rename(localPath, path.resolve(newPath, filename));
+    show.seasons[season_number].episodes[Number(episode_number) - 1] = filename;
+    save();
+}
+
 export const LibraryService = {
     getAll,
     add,
     remove,
     get,
     update,
-    scanLibraryAll
+    scanLibraryAll,
+    addEpisodeToShow
 };
