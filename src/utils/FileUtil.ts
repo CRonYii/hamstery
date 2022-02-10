@@ -46,6 +46,7 @@ const videoFormats = ['.mp4', '.mkv', '.flv', '.avi', '.rmvb', '.m4p', '.m4v']
 
 export const isVideoFile = (f: string) => videoFormats.includes(path.extname(f))
 
+export const getShowFolderName = (name: string, date: string) => `${name} (${new Date(date).getFullYear()})`;
 export const getSeasonFolderName = (season_number: number) => season_number == 0 ? 'Specials' : `Season ${season_number}`;
 
 const formatShowNumber = (n) => {

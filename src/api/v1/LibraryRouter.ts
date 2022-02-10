@@ -3,7 +3,7 @@ import { body, param } from 'express-validator';
 import path from 'path';
 
 
-import { LibraryService, LibraryType, Season, Show } from '../../services/LibraryService.js'
+import { LibraryService, LibraryStorage, LibraryType, Season, Show } from '../../services/LibraryService.js'
 import { ArrayOp } from '../../services/Service.js';
 import { isVideoFile } from '../../utils/FileUtil.js';
 import { paramIsValidDirectory, paramIsValidFile, validate } from '../../utils/RouterUtil.js';
@@ -68,6 +68,30 @@ libraryRouter.put('/:name', validate([shouldHaveLibrary,
         res.status(200).json({ result: 'success' });
     });
 
+libraryRouter.post('/:name/:storage_name', validate([
+    shouldHaveLibrary,
+    body('tmdb_id').isString(),
+    body('language').optional().isString(),
+]),
+    async (req: Request, res: Response) => {
+        const { name, storage_name } = req.params;
+        const lib = LibraryService.get(name);
+
+        const storage: LibraryStorage = lib.storage[path.normalize(storage_name)];
+        if (!storage) {
+            res.status(400).json({ result: 'error', reason: 'Storage does not exist' });
+            return;
+        }
+        const { tmdb_id, language } = req.body;
+        try {
+            await LibraryService.addShowToStorage(storage, tmdb_id, language);
+        } catch (e) {
+            res.status(400).json({ result: 'error', reason: e.message });
+            return;
+        }
+        res.status(200).json({ result: 'success' });
+    });
+
 libraryRouter.get('/:name/:storage/:show_name', validate([
     shouldHaveLibrary,
 ]),
@@ -116,7 +140,7 @@ libraryRouter.put('/:name/:storage/:show_name/:season_number/:episode_number', v
         try {
             await LibraryService.addEpisodeToShow(show, season_number, episode_number, filename);
         } catch (e) {
-            res.status(400).json({ result: 'error', reason: e });
+            res.status(400).json({ result: 'error', reason: e.message });
             return;
         }
 

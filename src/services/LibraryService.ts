@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 
 import { data, save } from '../utils/Database.js'
-import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist } from '../utils/FileUtil.js';
+import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName } from '../utils/FileUtil.js';
 import { getTVShowDetails, searchTVShowsAll } from '../utils/TMDB.js';
 import { ArrayOp } from './Service.js';
 
@@ -29,13 +29,13 @@ export type MetaSource = {
     id: string
 };
 
-interface SeasonwMap { [key: string]: Season; };
+interface SeasonMap { [key: string]: Season; };
 
 export type Show = {
     name: string,
     localPath: string,
     metaSource: MetaSource,
-    seasons: SeasonwMap
+    seasons: SeasonMap
 };
 
 export type Movie = {
@@ -204,6 +204,34 @@ const update = async (name: string, args: LibraryUpdateArgs) => {
     save();
 }
 
+const addShowToStorage = async (storage: LibraryStorage, tmdb_id: string, language?: string) => {
+    const data = await getTVShowDetails(tmdb_id, language);
+    if (storage.shows[data.name])
+        return;
+    const seasons: SeasonMap = {};
+    data.seasons.forEach(({ season_number, episode_count }) => {
+        seasons[season_number] = {
+            seasonNumber: season_number,
+            episodes: new Array(episode_count).fill('').map((_, i) => {
+                return null
+            })
+        };
+    });
+    const localPath = path.resolve(storage.directory, getShowFolderName(data.name, data.first_air_date));
+    await createDirIfNotExist(localPath);
+    const show: Show = {
+        localPath,
+        metaSource: {
+            type: SourceType.TMDB,
+            id: tmdb_id
+        },
+        name: data.name,
+        seasons
+    };
+    storage.shows[show.name] = show;
+    save();
+}
+
 const addEpisodeToShow = async (show: Show, season_number: string, episode_number: string, localPath: string) => {
     const seasonFolderName = getSeasonFolderName(Number(season_number));
     const epLabel = getSeasonEpisodeLabel(Number(season_number), Number(episode_number));
@@ -226,5 +254,6 @@ export const LibraryService = {
     get,
     update,
     scanLibraryAll,
+    addShowToStorage,
     addEpisodeToShow
 };
