@@ -19,8 +19,6 @@ export const validate = (validations: ValidationChain[]) => {
 };
 
 export const authenticationChecker = (key: string): RequestHandler => (req, res, next) => {
-    console.log(req.headers.authorization, key);
-    
     if (req.headers.authorization === key)
         return next();
 
