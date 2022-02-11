@@ -18,6 +18,15 @@ export const validate = (validations: ValidationChain[]) => {
     };
 };
 
+export const authenticationChecker = (key: string): RequestHandler => (req, res, next) => {
+    console.log(req.headers.authorization, key);
+    
+    if (req.headers.authorization === key)
+        return next();
+
+    return res.status(400).json({ result: "Unauthorized" });
+};
+
 export const paramIsValidDirectory = (checker, key: string) => {
     return checker(key)
         .isString()
@@ -48,7 +57,7 @@ export const paramIsValidFile = (checker, key: string) => {
 
 export const localhostOnly: RequestHandler = (req, res, next) => {
     const ip = req.ip;
-    
+
     if (ip === "127.0.0.1" || ip === "::ffff:127.0.0.1" || ip === "::1")
         return next();
 

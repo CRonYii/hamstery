@@ -4,6 +4,7 @@ import logger from "./Logger.js";
 const environmentVariables: string[] = [
     "NODE_ENV",
     "PORT",
+    "SECRET"
 ];
 
 export default function () {
