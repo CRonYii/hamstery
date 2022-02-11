@@ -42,9 +42,12 @@ export const createDirIfNotExist = async (dir: string): Promise<void> => {
         await fs.promises.mkdir(dir, { recursive: true });
 }
 
-const videoFormats = ['.mp4', '.mkv', '.flv', '.avi', '.rmvb', '.m4p', '.m4v']
-
-export const isVideoFile = (f: string) => videoFormats.includes(path.extname(f))
+const videoRegex = new RegExp('(\.mp4|\.mkv|\.flv|\.avi|\.rmvb|\.m4p|\.m4v)$');
+export const isVideoFile = (f: string) => f.match(videoRegex) != null;
+const audioRegex = new RegExp('(\.flac|\.mka)$');
+export const isAudioFile = (f: string) => f.match(audioRegex) != null;
+const subtitleRegex = new RegExp('(\.ass|\.srt)$');
+export const isSubtitleFile = (f: string) => f.match(subtitleRegex) != null;
 
 export const getShowFolderName = (name: string, date: string) => `${name} (${new Date(date).getFullYear()})`;
 export const getSeasonFolderName = (season_number: number) => season_number == 0 ? 'Specials' : `Season ${season_number}`;

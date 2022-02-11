@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 
 import { data, save } from '../utils/Database.js'
-import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName } from '../utils/FileUtil.js';
+import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName, isAudioFile, isSubtitleFile } from '../utils/FileUtil.js';
 import { getTVShowDetails, searchTVShowsAll } from '../utils/TMDB.js';
 import { ArrayOp } from './Service.js';
 
@@ -233,17 +233,31 @@ const addShowToStorage = async (storage: LibraryStorage, tmdb_id: string, langua
 }
 
 const addEpisodeToShow = async (show: Show, season_number: string, episode_number: string, localPath: string) => {
-    const seasonFolderName = getSeasonFolderName(Number(season_number));
+    let filename = path.basename(localPath, path.extname(localPath));
+    const fileDir = path.dirname(localPath);
+    let files = await listDirectory(fileDir);
+    files = [path.basename(localPath), ...files.filter((f) => {
+        return (f.match(new RegExp(`^${filename}`))) && (isAudioFile(f) || isSubtitleFile(f));
+    })];
+    console.log(files);
+    
     const epLabel = getSeasonEpisodeLabel(Number(season_number), Number(episode_number));
-    let filename = path.basename(localPath);
     if (!filename.includes(epLabel)) {
         filename = `[${epLabel}] ${filename}`
     }
-
+    const seasonFolderName = getSeasonFolderName(Number(season_number));
     const newPath = path.resolve(show.localPath, seasonFolderName);
+
     await createDirIfNotExist(newPath);
-    await fs.promises.rename(localPath, path.resolve(newPath, filename));
-    show.seasons[season_number].episodes[Number(episode_number) - 1] = filename;
+    const newFiles = await Promise.all(files.map(async (f) => {
+        let newFilename = f;
+        if (!newFilename.includes(epLabel)) {
+            newFilename = `[${epLabel}] ${newFilename}`
+        }
+        await fs.promises.rename(path.resolve(fileDir, f), path.resolve(newPath, newFilename));
+        return newFilename;
+    }));
+    show.seasons[season_number].episodes[Number(episode_number) - 1] = newFiles[0];
     save();
 }
 
