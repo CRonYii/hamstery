@@ -6,7 +6,7 @@ import path from 'path';
 import { LibraryService, LibraryStorage, LibraryType, Season, Show } from '../../services/LibraryService.js'
 import { ArrayOp } from '../../services/Service.js';
 import { isVideoFile } from '../../utils/FileUtil.js';
-import { paramIsValidDirectory, paramIsValidFile, validate } from '../../utils/RouterUtil.js';
+import { localhostOnly, paramIsValidDirectory, paramIsValidFile, validate } from '../../utils/RouterUtil.js';
 
 const libraryRouter = Router();
 
@@ -108,11 +108,13 @@ libraryRouter.get('/:name/:storage/:show_name', validate([
         res.status(200).json(show);
     });
 
-libraryRouter.put('/:name/:storage/:show_name/:season_number/:episode_number', validate([
-    shouldHaveLibrary,
-    param('episode_number').isInt({ min: 1 }),
-    paramIsValidFile(body, 'filename')
-]),
+libraryRouter.put('/:name/:storage/:show_name/:season_number/:episode_number',
+    localhostOnly,
+    validate([
+        shouldHaveLibrary,
+        param('episode_number').isInt({ min: 1 }),
+        paramIsValidFile(body, 'filename')
+    ]),
     async (req: Request, res: Response) => {
         const { name, storage, show_name, season_number, episode_number } = req.params;
         const lib = LibraryService.get(name);

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { validationResult, ValidationChain } from 'express-validator';
 import path from 'path'
 
@@ -44,4 +44,13 @@ export const paramIsValidFile = (checker, key: string) => {
                 return Promise.reject(`Invalid file '${dir}'`);
             return true;
         });
+}
+
+export const localhostOnly: RequestHandler = (req, res, next) => {
+    const ip = req.ip;
+    
+    if (ip === "127.0.0.1" || ip === "::ffff:127.0.0.1" || ip === "::1")
+        return next();
+
+    res.send(400).json({ result: "error" });
 }
