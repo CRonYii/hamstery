@@ -28,6 +28,7 @@ async function loadDatabase() {
 (async () => {
     if (!initializeEnv()) {
         logger.error(`Server failed to start up: Missing Environment Variable`);
+        return;
     }
 
     await loadDatabase();
