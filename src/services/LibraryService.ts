@@ -113,7 +113,7 @@ const updateShowContents = async (previousContent: LibraryStorage, contents: Val
         return {
             name: c.name,
             storage: previousContent.directory,
-            poster: "https://image.tmdb.org/t/p/w500" + data.poster_path,
+            poster: "https://image.tmdb.org/t/p/w185" + data.poster_path,
             localPath: c.localPath,
             metaSource: source,
             seasons
