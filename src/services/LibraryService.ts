@@ -33,6 +33,8 @@ interface SeasonMap { [key: string]: Season; };
 
 export type Show = {
     name: string,
+    storage: string,
+    poster?: string,
     localPath: string,
     metaSource: MetaSource,
     seasons: SeasonMap
@@ -74,10 +76,10 @@ const get = (name: string) => {
 
 type ValidContentDirectory = { localPath: string, name: string, yearReleased: string };
 
-const updateShowContents = async (previousContent: ShowMap, contents: ValidContentDirectory[]): Promise<ShowMap> => {
+const updateShowContents = async (previousContent: LibraryStorage, contents: ValidContentDirectory[]): Promise<ShowMap> => {
     const results: Show[] = await Promise.all(contents.map(async (c) => {
         const source: MetaSource = { type: SourceType.TMDB, id: '' };
-        const previous = previousContent[c.localPath];
+        const previous = previousContent.shows[c.localPath];
         if (previous?.metaSource.type == SourceType.TMDB) {
             source.id = previous.metaSource.id;
         } else {
@@ -93,6 +95,7 @@ const updateShowContents = async (previousContent: ShowMap, contents: ValidConte
         if (source.id == '')
             return null;
         const data = await getTVShowDetails(source.id);
+        
         const seasonsArr: Season[] = await Promise.all(data.seasons.map(async ({ season_number, episode_count }): Promise<Season> => {
             const seasonName = getSeasonFolderName(season_number);
             const locaFiles = (await listDirectory(path.resolve(c.localPath, seasonName))).filter(isVideoFile);
@@ -109,6 +112,8 @@ const updateShowContents = async (previousContent: ShowMap, contents: ValidConte
         }
         return {
             name: c.name,
+            storage: previousContent.directory,
+            poster: "https://image.tmdb.org/t/p/w500" + data.poster_path,
             localPath: c.localPath,
             metaSource: source,
             seasons
@@ -134,7 +139,7 @@ const scanLibrarySingle = async (lib: Library, storage: LibraryStorage) => {
         }
     }
     if (lib.type == LibraryType.Show) {
-        storage.shows = await updateShowContents(storage.shows, contents);
+        storage.shows = await updateShowContents(storage, contents);
     } // TODO Moive
     save();
 }
@@ -221,6 +226,7 @@ const addShowToStorage = async (storage: LibraryStorage, tmdb_id: string, langua
     await createDirIfNotExist(localPath);
     const show: Show = {
         localPath,
+        storage: storage.directory,
         metaSource: {
             type: SourceType.TMDB,
             id: tmdb_id
@@ -240,7 +246,7 @@ const addEpisodeToShow = async (show: Show, season_number: string, episode_numbe
         return (f.match(new RegExp(`^${filename}`))) && (isAudioFile(f) || isSubtitleFile(f));
     })];
     console.log(files);
-    
+
     const epLabel = getSeasonEpisodeLabel(Number(season_number), Number(episode_number));
     if (!filename.includes(epLabel)) {
         filename = `[${epLabel}] ${filename}`
