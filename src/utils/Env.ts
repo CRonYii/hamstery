@@ -4,7 +4,8 @@ import logger from "./Logger.js";
 const environmentVariables: string[] = [
     "NODE_ENV",
     "PORT",
-    "SECRET"
+    "SECRET",
+    "MONGODB_URL"
 ];
 
 export default function () {

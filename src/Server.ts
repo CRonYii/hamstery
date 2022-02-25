@@ -1,11 +1,8 @@
 import express from 'express';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-import initializeEnv from './utils/Env.js';
-import { initializeDatabase } from './utils/Database.js';
-import logger from "./utils/Logger.js";
+import mongoose from 'mongoose';
 import api from "./api/API.js";
+import initializeEnv from './utils/Env.js';
+import logger from "./utils/Logger.js";
 import { authenticationChecker } from './utils/RouterUtil.js';
 
 async function startServer() {
@@ -20,11 +17,23 @@ async function startServer() {
     });
 };
 
-async function loadDatabase() {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const dbfile = join(__dirname, 'db.json');
+async function connectMongoDB() {
+    return new Promise(resolve => {
+        // connect to MongoDB
+        const mongodbURL = process.env.MONGODB_URL;
 
-    await initializeDatabase(dbfile);
+        mongoose.connect(mongodbURL);
+
+        mongoose.connection.on('error', (e) => {
+            logger.error('MongoDB connection error. ' + e);
+            resolve(false);
+        });
+
+        mongoose.connection.once('open', async () => {
+            logger.info('Connected to MongoDB at ' + mongodbURL);
+            resolve(true);
+        });
+    });
 };
 
 (async () => {
@@ -33,7 +42,6 @@ async function loadDatabase() {
         return;
     }
 
-    await loadDatabase();
-
+    await connectMongoDB();
     startServer();
 })();

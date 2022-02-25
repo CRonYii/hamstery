@@ -1,5 +1,5 @@
 import { Router } from "express";
-import libraryRouter from './LibraryRouter.js'
+import TVShowsLibraryRouter from './TVShowsLibraryRouter.js'
 
 export default (authentication) => {
     const apiv1 = Router();
@@ -8,7 +8,7 @@ export default (authentication) => {
         res.status(200).send({ result: 'success' });
     });
 
-    apiv1.use('/library', authentication, libraryRouter);
+    apiv1.use('/tvshows', authentication, TVShowsLibraryRouter);
 
     return apiv1;
 };
