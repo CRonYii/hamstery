@@ -120,7 +120,7 @@ const updateShowContents = async (previousContent: LibraryStorage, contents: Val
         };
     }));
     const shows = {};
-    for (const show of results) {
+    for (const show of results.filter(s => s != null)) {
         shows[show.name] = show;
     }
     return shows;
