@@ -121,7 +121,7 @@ libraryRouter.get('/:name/:show_id',
 
 /* Add a show to lirabry storage */
 libraryRouter.post('/:name/:storage_id', validate([
-    body('tmdb_id').isString(),
+    body('tmdb_id').isNumeric(),
     body('language').optional().isString(),
 ]),
     async (req: Request, res: Response) => {
@@ -132,9 +132,9 @@ libraryRouter.post('/:name/:storage_id', validate([
                 return res.status(400).json({ result: 'error', reason: `Library ${name} does not exist` });
 
             const { tmdb_id, language } = req.body;
-            const msg = await lib.addShow(storage_id, tmdb_id, language);
+            const [msg, id] = await lib.addShow(storage_id, tmdb_id, language);
             if (msg == 'success')
-                res.status(200).json({ result: 'success' });
+                res.status(200).json({ result: 'success', id });
             else
                 return res.status(400).json({ result: 'error', reason: msg });
         } catch (e) {

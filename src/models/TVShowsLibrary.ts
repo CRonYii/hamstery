@@ -164,13 +164,13 @@ TVShowsLibraryMongoSchema.methods.getEpisode = function (this: ITVShowsLibrary, 
 TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrary, storage_id: string, tmdb_id: string, language: string) {
     const storage = this.getStorage(storage_id);
     if (!storage)
-        return 'Storage does not exist';
+        return ['Storage does not exist'];
     const data = await getTVShowDetails(tmdb_id, language);
 
     const localPath = path.resolve(storage.directory, getShowFolderName(data.name, data.first_air_date));
 
     if (this.shows.findIndex(show => show.localPath == localPath) != -1)
-        return 'Show already existed';
+        return ['Show already existed'];
 
     /* Prepare show metadata */
     const seasons: ISeason[] = await Promise.all(data.seasons.map(async ({ season_number, episode_count }): Promise<ISeason> => {
@@ -185,7 +185,7 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
     const poster = data.poster_path ? TMDB_IMAGE185_URL + data.poster_path : undefined;
 
     await createDirIfNotExist(localPath);
-    this.shows.push({
+    const show = this.shows.create({
         localPath,
         name: data.name,
         yearReleased,
@@ -196,8 +196,9 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
         seasons,
         poster
     });
+    this.shows.push(show);
     this.save();
-    return "success";
+    return ['success', show._id];
 }
 
 TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
