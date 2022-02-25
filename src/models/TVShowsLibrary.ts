@@ -109,10 +109,10 @@ TVShowsLibraryMongoSchema.methods.refresh = async function (this: ITVShowsLibrar
         const metaSource: IMetaSource = { type: SourceType.TMDB, id: '' };
 
         const results = await searchTVShowsAll(name);
-        metaSource.id = results.find((r) => new Date(r.first_air_date).getFullYear().toString() == yearReleased).id;
+        metaSource.id = results.find((r) => new Date(r.first_air_date).getFullYear().toString() == yearReleased)?.id;
 
         // Could not find this show
-        if (metaSource.id == '')
+        if (!metaSource.id)
             return;
         const data = await getTVShowDetails(metaSource.id);
 
