@@ -1,5 +1,6 @@
 import { Router } from "express";
 import TVShowsLibraryRouter from './TVShowsLibraryRouter.js'
+import MediaRouter from './MediaRouter.js'
 
 export default (authentication) => {
     const apiv1 = Router();
@@ -9,6 +10,7 @@ export default (authentication) => {
     });
 
     apiv1.use('/tvshows', authentication, TVShowsLibraryRouter);
+    apiv1.use('/media', authentication, MediaRouter);
 
     return apiv1;
 };

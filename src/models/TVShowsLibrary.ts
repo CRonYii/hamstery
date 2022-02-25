@@ -219,7 +219,7 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
         const fileDir = path.dirname(filename);
         let files = await listDirectory(fileDir);
         files = [path.basename(filename), ...files.filter((f) => {
-            return (f.match(new RegExp(`^${basename}`))) && (isAudioFile(f) || isSubtitleFile(f));
+            return f.startsWith(basename) && (isAudioFile(f) || isSubtitleFile(f));
         })];
         /* Populate Season EP label */
         const epLabel = getSeasonEpisodeLabel(Number(season_number), Number(episode_number));

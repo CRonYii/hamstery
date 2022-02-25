@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { validationResult, ValidationChain } from 'express-validator';
 import path from 'path'
+import { pathIsAllowed } from './Env.js';
 
-import { isValidDirectory, isValidFile } from './FileUtil.js';
+import { fromBase64, isValidDirectory, isValidFile } from './FileUtil.js';
 
 // parallel processing
 export const validate = (validations: ValidationChain[]) => {
@@ -27,9 +28,10 @@ export const authenticationChecker = (key: string): RequestHandler => (req, res,
 
 export const paramIsValidDirectory = (checker, key: string) => {
     return checker(key)
-        .isString()
+        .isBase64()
         .bail()
         .customSanitizer((value) => {
+            value = fromBase64(value);
             return path.normalize(value);
         })
         .custom(async (dir) => {
@@ -41,13 +43,14 @@ export const paramIsValidDirectory = (checker, key: string) => {
 
 export const paramIsValidFile = (checker, key: string) => {
     return checker(key)
-        .isString()
+    .isBase64()
         .bail()
         .customSanitizer((value) => {
+            value = fromBase64(value);
             return path.normalize(value);
         })
         .custom(async (dir) => {
-            if (!await isValidFile(dir))
+            if (!pathIsAllowed(dir) || !await isValidFile(dir))
                 return Promise.reject(`Invalid file '${dir}'`);
             return true;
         });

@@ -37,8 +37,8 @@ async function connectMongoDB() {
 };
 
 (async () => {
-    if (!initializeEnv()) {
-        logger.error(`Server failed to start up: Missing Environment Variable`);
+    if (!await initializeEnv()) {
+        logger.error(`Server failed to start up due to Environment Variable initialization failure.`);
         return;
     }
 

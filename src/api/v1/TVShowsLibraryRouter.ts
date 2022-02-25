@@ -1,10 +1,10 @@
 import { Request, Response, Router } from 'express';
 import { body, param } from 'express-validator';
 import { TVShowsLibrary } from '../../models/TVShowsLibrary.js';
-import { ArrayOp } from '../Service.js';
 import { isVideoFile } from '../../utils/FileUtil.js';
 import logger from '../../utils/Logger.js';
-import { localhostOnly, paramIsValidDirectory, paramIsValidFile, validate } from '../../utils/RouterUtil.js';
+import { paramIsValidDirectory, paramIsValidFile, validate } from '../../utils/RouterUtil.js';
+import { ArrayOp } from '../Service.js';
 
 const libraryRouter = Router();
 
@@ -22,7 +22,7 @@ libraryRouter.post('/', validate([
     paramIsValidDirectory(body, 'storage.*')
 ]), async (req: Request, res: Response) => {
     let { name, storage } = req.body;
-    storage = storage.map((directory) => ({ directory }));
+    storage = storage.map((directory: string) => ({ directory }));
     try {
         await new TVShowsLibrary({ name, storage }).save();
         return res.status(200).json({ result: 'success' });
@@ -145,7 +145,6 @@ libraryRouter.post('/:name/:storage_id', validate([
 
 /* specify a episode video file in local disk */
 libraryRouter.put('/:name/:show_id/:season_number/:episode_number',
-    localhostOnly,
     validate([
         param('season_number').isInt({ min: 0 }),
         param('episode_number').isInt({ min: 1 }),
