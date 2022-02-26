@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import logger from '../utils/Logger';
+import logger from '../utils/Logger.js';
 
 interface IDownloadTask extends mongoose.Document {
     gid: string,
