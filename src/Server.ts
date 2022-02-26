@@ -2,7 +2,7 @@ import Aria2Client from 'aria2';
 import express from 'express';
 import mongoose from 'mongoose';
 import api from "./api/API.js";
-import initializeAria2 from './utils/Aria2.js';
+import { initializeAria } from './utils/Aria2.js';
 import initializeEnv, { env } from './utils/Env.js';
 import logger from "./utils/Logger.js";
 import { authenticationChecker } from './utils/RouterUtil.js';
@@ -44,14 +44,11 @@ async function connectMongoDB() {
         return;
     }
 
-    if (!await initializeAria2(new Aria2Client({
+    await initializeAria(new Aria2Client({
         host: env.ARIA2_HOST,
         port: env.ARIA2_PORT,
         secret: env.ARIA2_SECRET
-    }))) {
-        logger.error(`Server failed to start up due to Aria2 initialization failure.`);
-        return;
-    }
+    }));
 
     if (!await connectMongoDB()) {
         logger.error(`Server failed to start up due to MongoDB initialization failure.`);
