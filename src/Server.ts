@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import api from "./api/API.js";
 import initializeEnv, { env } from './utils/Env.js';
 import logger from "./utils/Logger.js";
-import { getPlexLibraries, getPlexLibraryHasLocation } from './utils/Plex.js';
 import { authenticationChecker } from './utils/RouterUtil.js';
 
 async function startServer() {

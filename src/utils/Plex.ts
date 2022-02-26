@@ -3,7 +3,7 @@ import { env } from "./Env.js";
 import { isSubdir } from "./FileUtil.js";
 import logger from "./Logger.js";
 
-export const getPlexLibraries = async () => {
+const getPlexLibraries = async () => {
     try {
         const { data } = await axios.get(`${env.PLEX_URL}/library/sections?X-Plex-Token=${env.PLEX_TOKEN}`, { headers: { Accept: 'application/json' } });
         return data?.MediaContainer?.Directory || [];
@@ -13,7 +13,7 @@ export const getPlexLibraries = async () => {
     }
 }
 
-export const getPlexLibraryHasLocation = async (type: 'movie' | 'show', path: string) => {
+const getPlexLibraryHasLocation = async (type: 'movie' | 'show', path: string) => {
     const libs = await getPlexLibraries();
     return libs.find((lib) => {
         if (lib.type !== type)
@@ -23,6 +23,8 @@ export const getPlexLibraryHasLocation = async (type: 'movie' | 'show', path: st
 }
 
 export const refreshPlexLibraryPartially = async (type: 'movie' | 'show', path: string) => {
+    if (env.PLEX_SUPPORT !== 'enable')
+        return;
     const lib = await getPlexLibraryHasLocation(type, path);
     if (!lib)
         return;
