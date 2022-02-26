@@ -58,6 +58,7 @@ interface ITVShowsLibrary extends mongoose.Document {
     getShow: (this: ITVShowsLibrary, show_id: string) => ITVShow,
     getSeason: (this: ITVShowsLibrary, show_id: string, season_number: number) => ISeason,
     getEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => IEpisode,
+    checkEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => [string, IEpisode],
     addEpisodeFromLocalFile: (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number) => Promise<string>,
 };
 
@@ -181,6 +182,15 @@ TVShowsLibraryMongoSchema.methods.getEpisode = function (this: ITVShowsLibrary, 
     return season?.episodes[episode_idx];
 }
 
+TVShowsLibraryMongoSchema.methods.checkEpisode = function (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) {
+    const episode = this.getEpisode(show_id, season_number, episode_number);
+    if (!episode)
+        return ['Episode does not exist'];
+    if (episode.status !== EpisodeStatus.MISSING)
+        return ['Episode already exist'];
+    return ['success', episode];
+}
+
 TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrary, storage_id: string, tmdb_id: string, language: string) {
     const storage = this.getStorage(storage_id);
     if (!storage)
@@ -223,11 +233,11 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
 
 TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
     async function (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number) {
-        const episode = this.getEpisode(show_id, season_number, episode_number);
+        const [checkResult, episode] = this.checkEpisode(show_id, season_number, episode_number);
+        if (checkResult !== 'success')
+            return checkResult;
         const season = episode.parent() as ISeason;
         const show = season.parent() as ITVShow;
-        if (episode.status !== EpisodeStatus.MISSING)
-            return 'Episode already exist';
         let basename = path.basename(filename, path.extname(filename));
         /* Get all related video/audio/subtitle files */
         const fileDir = path.dirname(filename);

@@ -41,8 +41,8 @@ export const paramIsValidDirectory = (checker, key: string) => {
         });
 }
 
-export const paramIsValidFile = (checker, key: string) => {
-    return checker(key)
+export const paramIsValidFile = (checker: any) => {
+    return checker
         .isBase64()
         .bail()
         .customSanitizer((value) => {

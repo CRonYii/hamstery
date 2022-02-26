@@ -1,5 +1,5 @@
 import { Request, Response, Router } from 'express';
-import { body, param } from 'express-validator';
+import { body, oneOf, param } from 'express-validator';
 import { TVShowsLibrary } from '../../models/TVShowsLibrary.js';
 import { isVideoFile } from '../../utils/FileUtil.js';
 import logger from '../../utils/Logger.js';
@@ -134,7 +134,7 @@ libraryRouter.post('/:name/:storage_id', validate([
             const { tmdb_id, language } = req.body;
             const [msg, id] = await lib.addShow(storage_id, tmdb_id, language);
             if (msg == 'success')
-                res.status(200).json({ result: 'success', id });
+                return res.status(200).json({ result: 'success', id });
             else
                 return res.status(400).json({ result: 'error', reason: msg });
         } catch (e) {
@@ -143,27 +143,44 @@ libraryRouter.post('/:name/:storage_id', validate([
         }
     });
 
-/* specify a episode video file in local disk */
+/* 1. specify an episode video file in local disk 
+ * 2. download an episode from magnet link */
 libraryRouter.put('/:name/:show_id/:season_number/:episode_number',
+    oneOf([
+        paramIsValidFile(body('filename'))
+            .custom(async (filename: string) => {
+                if (!isVideoFile(filename))
+                    return Promise.reject(`Invalid Video file '${filename}'`);
+                return true;
+            }),
+        body('magnet_link').matches(/^magnet:\?xt=/)
+    ]),
     validate([
         param('season_number').isInt({ min: 0 }),
         param('episode_number').isInt({ min: 1 }),
-        paramIsValidFile(body, 'filename')
     ]),
     async (req: Request, res: Response) => {
-        const { name, show_id, season_number, episode_number } = req.params;
+        let { name, show_id, season_number, episode_number } = req.params;
+        const seasonNumber = Number(season_number);
+        const episodeNumber = Number(episode_number);
         try {
             const lib = await TVShowsLibrary.findOne({ name });
             if (!lib)
                 return res.status(400).json({ result: 'error', reason: `Library ${name} does not exist` });
-            const { filename } = req.body;
-            if (!isVideoFile(filename))
-                return res.status(400).json({ result: 'error', reason: `${filename} is not a video` });
-            const msg = await lib.addEpisodeFromLocalFile(filename, show_id, Number(season_number), Number(episode_number));
-            if (msg == 'success')
-                res.status(200).json({ result: 'success' });
-            else
-                return res.status(400).json({ result: 'error', reason: msg });
+            const { filename, magnet_link } = req.body;
+            if (filename) {
+                const msg = await lib.addEpisodeFromLocalFile(filename, show_id, seasonNumber, episodeNumber);
+                if (msg == 'success')
+                    return res.status(200).json({ result: 'success' });
+                else
+                    return res.status(400).json({ result: 'error', reason: msg });
+            } else if (magnet_link) {
+                const [checkResult, episode] = lib.checkEpisode(show_id, seasonNumber, episodeNumber);
+                if (checkResult !== 'success')
+                    return res.status(400).json({ result: 'error', reason: checkResult });
+                console.log(`Download to ${episode.episodeNumber}`);
+                return res.status(200).json({ result: 'success' });
+            }
         } catch (e) {
             logger.error(e);
             return res.status(400).json({ result: 'error', reason: e.message });
