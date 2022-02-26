@@ -20,14 +20,14 @@ export enum EpisodeStatus {
 };
 
 /* Typescript types definition */
-interface IEpisode {
+interface IEpisode extends mongoose.Types.Subdocument {
     status: EpisodeStatus
     episodeNumber: number,
     path: string,
 }
-interface ISeason {
+interface ISeason extends mongoose.Types.Subdocument {
     seasonNumber: number,
-    episodes: IEpisode[]
+    episodes: mongoose.Types.DocumentArray<IEpisode>
 };
 
 interface IMetaSource {
@@ -35,7 +35,7 @@ interface IMetaSource {
     id: string
 };
 
-interface ITVShow {
+interface ITVShow extends mongoose.Types.Subdocument {
     localPath: string,
     name: string,
     yearReleased: number,
@@ -44,7 +44,7 @@ interface ITVShow {
     seasons: mongoose.Types.DocumentArray<ISeason>
 };
 
-interface IStorage {
+interface IStorage extends mongoose.Types.Subdocument {
     directory: string,
 };
 
@@ -57,7 +57,7 @@ interface ITVShowsLibrary extends mongoose.Document {
     addShow: (this: ITVShowsLibrary, storage_id: string, tmdb_id: string, language: string) => Promise<string>,
     getShow: (this: ITVShowsLibrary, show_id: string) => ITVShow,
     getSeason: (this: ITVShowsLibrary, show_id: string, season_number: number) => ISeason,
-    getEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => string,
+    getEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => IEpisode,
     addEpisodeFromLocalFile: (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number) => Promise<string>,
 };
 
@@ -133,31 +133,32 @@ TVShowsLibraryMongoSchema.methods.refresh = async function (this: ITVShowsLibrar
         if (!metaSource.id)
             return;
         const data = await getTVShowDetails(metaSource.id);
-
-        const seasons: ISeason[] = await Promise.all(data.seasons.map(async ({ season_number, episode_count }): Promise<ISeason> => {
-            const seasonName = getSeasonFolderName(season_number);
-            const locaFiles = (await listDirectory(path.resolve(fullShowDirectory, seasonName))).filter(isVideoFile);
-            return {
-                seasonNumber: season_number,
-                episodes: new Array(episode_count).fill('').map((_, i) => {
-                    const path = locaFiles.find(f => f.includes(getSeasonEpisodeLabel(season_number, i + 1))) || ''
-                    return {
-                        episodeNumber: i + 1,
-                        path,
-                        status: path === '' ? EpisodeStatus.MISSING : EpisodeStatus.DOWNLOAED
-                    };
-                })
-            };
-        }));
         const poster = data.poster_path ? TMDB_IMAGE185_URL + data.poster_path : undefined;
-        this.shows.push({
+        const show = this.shows.create({
             localPath: fullShowDirectory,
             name,
             yearReleased,
             metaSource,
-            seasons,
+            seasons: [],
             poster
         });
+
+        await Promise.all(data.seasons.map(async ({ season_number, episode_count }) => {
+            const seasonName = getSeasonFolderName(season_number);
+            const locaFiles = (await listDirectory(path.resolve(fullShowDirectory, seasonName))).filter(isVideoFile);
+            const season = show.seasons.create({ seasonNumber: season_number, episodes: [] });
+            new Array(episode_count).fill('').forEach((_, i) => {
+                const path = locaFiles.find(f => f.includes(getSeasonEpisodeLabel(season_number, i + 1))) || ''
+                season.episodes.push({
+                    episodeNumber: i + 1,
+                    path,
+                    status: path === '' ? EpisodeStatus.MISSING : EpisodeStatus.DOWNLOAED
+                });
+            });
+            show.seasons.push(season);
+        }));
+
+        this.shows.push(show);
     }));
 };
 
@@ -177,11 +178,7 @@ TVShowsLibraryMongoSchema.methods.getSeason = function (this: ITVShowsLibrary, s
 TVShowsLibraryMongoSchema.methods.getEpisode = function (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) {
     const season = this.getSeason(show_id, season_number);
     const episode_idx = episode_number - 1;
-    if (!season)
-        return '';
-    if (season.episodes.length < episode_idx)
-        return '';
-    return season.episodes.length[episode_idx];
+    return season?.episodes[episode_idx];
 }
 
 TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrary, storage_id: string, tmdb_id: string, language: string) {
@@ -196,18 +193,8 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
         return ['Show already existed'];
 
     /* Prepare show metadata */
-    const seasons: ISeason[] = await Promise.all(data.seasons.map(async ({ season_number, episode_count }): Promise<ISeason> => {
-        return {
-            seasonNumber: season_number,
-            episodes: new Array(episode_count).fill('').map((_, i) => {
-                return null
-            })
-        };
-    }));
     const yearReleased = new Date(data.first_air_date).getFullYear().toString();
     const poster = data.poster_path ? TMDB_IMAGE185_URL + data.poster_path : undefined;
-
-    await createDirIfNotExist(localPath);
     const show = this.shows.create({
         localPath,
         name: data.name,
@@ -216,9 +203,19 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
             type: SourceType.TMDB,
             id: tmdb_id
         },
-        seasons,
+        seasons: [],
         poster
     });
+    await Promise.all(data.seasons.map(async ({ season_number, episode_count }) => {
+        show.seasons.push({
+            seasonNumber: season_number,
+            episodes: new Array(episode_count).fill('').map((_, i) => {
+                return { episodeNumber: i + 1, status: EpisodeStatus.MISSING, path: '' }
+            })
+        });
+    }));
+
+    await createDirIfNotExist(localPath);
     this.shows.push(show);
     this.save();
     return ['success', show._id];
@@ -226,16 +223,10 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
 
 TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
     async function (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number) {
-        const show = this.getShow(show_id);
-        if (!show)
-            return 'Show does not exist';
-        const season = this.getSeason(show_id, season_number);
-        if (!season)
-            return 'Season does not exist';
-        const episode_idx = episode_number - 1;
-        if (season.episodes.length < episode_idx)
-            return 'Episode does not exist';
-        if (season.episodes[episode_idx].status !== EpisodeStatus.MISSING)
+        const episode = this.getEpisode(show_id, season_number, episode_number);
+        const season = episode.parent() as ISeason;
+        const show = season.parent() as ITVShow;
+        if (episode.status !== EpisodeStatus.MISSING)
             return 'Episode already exist';
         let basename = path.basename(filename, path.extname(filename));
         /* Get all related video/audio/subtitle files */
@@ -260,7 +251,8 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
             return newFilename;
         }));
         /* Save in database */
-        season.episodes[episode_idx] = { path: movedVideoPath, episodeNumber: episode_number, status: EpisodeStatus.DOWNLOAED };
+        episode.status = EpisodeStatus.DOWNLOAED;
+        episode.path = movedVideoPath;
         refreshPlexLibraryPartially('show', newPath);
         this.save();
         return "success";
