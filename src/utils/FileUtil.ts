@@ -51,6 +51,13 @@ export const toPathObject = (d: string) => {
     };
 }
 
+export const isSubdir = (parent: string, dir: string) => {
+    const relative = path.relative(parent, dir);
+
+    const isSubdir = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+    return (isSubdir || relative === '');
+}
+
 const videoRegex = new RegExp('(\.mp4|\.mkv|\.flv|\.avi|\.rmvb|\.m4p|\.m4v)$');
 export const isVideoFile = (f: string) => f.match(videoRegex) != null;
 const audioRegex = new RegExp('(\.flac|\.mka)$');

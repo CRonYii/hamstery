@@ -5,6 +5,7 @@ import fs from 'fs';
 import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName, isAudioFile, isSubtitleFile } from '../utils/FileUtil.js';
 import { getTVShowDetails, searchTVShowsAll, TMDB_IMAGE185_URL } from '../utils/TMDB.js';
 import logger from '../utils/Logger.js';
+import { refreshPlexLibraryPartially } from '../utils/Plex.js';
 
 const showTitleRegex = /^(.*?) ?\((\d{4})\)$/;
 
@@ -238,6 +239,7 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
         }));
         /* Save in database */
         season.episodes[episode_idx] = movedVideoPath;
+        refreshPlexLibraryPartially('show', newPath);
         this.save();
         return "success";
     }

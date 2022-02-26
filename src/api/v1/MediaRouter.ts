@@ -12,7 +12,7 @@ const mediaRouter = Router();
 mediaRouter.get('/list/',
     async (req: Request, res: Response) => {
         try {
-            return res.status(200).json({ path: env.drives });
+            return res.status(200).json({ path: env.AVAILABLE_DRIVES });
         } catch (e) {
             logger.error(e);
             return res.status(400).json({ result: 'error', reason: e.message });
