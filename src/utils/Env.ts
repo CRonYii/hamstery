@@ -32,6 +32,10 @@ const environmentVariables: EnvVar[] = [
             return [valid, drives];
         }
     },
+    { key: "ARIA2_SUPPORT", defaultValue: "disable" },
+    { key: "ARIA2_HOST", dependsOn: { key: "ARIA2_SUPPORT", value: "enable" } },
+    { key: "ARIA2_PORT", dependsOn: { key: "ARIA2_SUPPORT", value: "enable" } },
+    { key: "ARIA2_SECRET", dependsOn: { key: "ARIA2_SUPPORT", value: "enable" } },
     { key: "PLEX_SUPPORT", defaultValue: "disable" },
     { key: "PLEX_URL", dependsOn: { key: "PLEX_SUPPORT", value: "enable" } },
     { key: "PLEX_TOKEN", dependsOn: { key: "PLEX_SUPPORT", value: "enable" } },
