@@ -61,8 +61,8 @@ export const isSubtitleFile = (f: string) => f.match(subtitleRegex) != null;
 export const getShowFolderName = (name: string, date: string) => `${name} (${new Date(date).getFullYear()})`;
 export const getSeasonFolderName = (season_number: number) => season_number == 0 ? 'Specials' : `Season ${season_number}`;
 
-export const fromBase64 = (s: string) => Buffer.from(s, 'base64').toString('utf8');
-export const toBase64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
+export const fromBase64 = (s: string) => { try { return Buffer.from(s, 'base64').toString('utf8') } catch { return '' } };
+export const toBase64 = (s: string) => { try { return Buffer.from(s, 'utf8').toString('base64') } catch { return '' } };
 
 const formatShowNumber = (n) => {
     return n.toLocaleString('en-US', {

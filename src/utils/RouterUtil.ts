@@ -43,7 +43,7 @@ export const paramIsValidDirectory = (checker, key: string) => {
 
 export const paramIsValidFile = (checker, key: string) => {
     return checker(key)
-    .isBase64()
+        .isBase64()
         .bail()
         .customSanitizer((value) => {
             value = fromBase64(value);
