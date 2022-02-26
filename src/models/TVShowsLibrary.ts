@@ -13,10 +13,21 @@ export enum SourceType {
     TMDB = "TMDB"
 };
 
+export enum EpisodeStatus {
+    DOWNLOAED = 'downloaded',
+    DOWNLOADING = 'downloading',
+    MISSING = 'missing',
+};
+
 /* Typescript types definition */
+interface IEpisode {
+    status: EpisodeStatus
+    episodeNumber: number,
+    path: string,
+}
 interface ISeason {
     seasonNumber: number,
-    episodes: string[]
+    episodes: IEpisode[]
 };
 
 interface IMetaSource {
@@ -55,9 +66,15 @@ interface TVShowsLibraryModel extends mongoose.Model<ITVShowsLibrary> {
 };
 
 /* Schema */
+const EpisodeSchema = {
+    status: { type: String, enum: EpisodeStatus, required: true },
+    episodeNumber: { type: Number, required: true },
+    path: String,
+};
+
 const SeasonSchema = {
     seasonNumber: { type: Number, required: true },
-    episodes: [String]
+    episodes: [EpisodeSchema]
 };
 
 const MetaSourceSchema = {
@@ -123,7 +140,12 @@ TVShowsLibraryMongoSchema.methods.refresh = async function (this: ITVShowsLibrar
             return {
                 seasonNumber: season_number,
                 episodes: new Array(episode_count).fill('').map((_, i) => {
-                    return locaFiles.find(f => f.includes(getSeasonEpisodeLabel(season_number, i + 1))) || ''
+                    const path = locaFiles.find(f => f.includes(getSeasonEpisodeLabel(season_number, i + 1))) || ''
+                    return {
+                        episodeNumber: i + 1,
+                        path,
+                        status: path === '' ? EpisodeStatus.MISSING : EpisodeStatus.DOWNLOAED
+                    };
                 })
             };
         }));
@@ -213,7 +235,7 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
         const episode_idx = episode_number - 1;
         if (season.episodes.length < episode_idx)
             return 'Episode does not exist';
-        if (season.episodes[episode_idx] != '')
+        if (season.episodes[episode_idx].status !== EpisodeStatus.MISSING)
             return 'Episode already exist';
         let basename = path.basename(filename, path.extname(filename));
         /* Get all related video/audio/subtitle files */
@@ -238,7 +260,7 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
             return newFilename;
         }));
         /* Save in database */
-        season.episodes[episode_idx] = movedVideoPath;
+        season.episodes[episode_idx] = { path: movedVideoPath, episodeNumber: episode_number, status: EpisodeStatus.DOWNLOAED };
         refreshPlexLibraryPartially('show', newPath);
         this.save();
         return "success";
