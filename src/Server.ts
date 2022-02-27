@@ -1,6 +1,7 @@
 import Aria2Client from 'aria2';
 import express from 'express';
 import mongoose from 'mongoose';
+import path from 'path';
 import api from "./api/API.js";
 import { initializeAria } from './utils/Aria2.js';
 import initializeEnv, { env } from './utils/Env.js';
@@ -11,8 +12,11 @@ async function startServer() {
     const app = express();
 
     app.use(express.json());
-    app.use(express.static('public'));
     app.use("/api", api(authenticationChecker(env.SECRET)));
+    app.use(express.static('public'));
+    app.get('*', (req, res) => {
+        res.sendFile(path.resolve('public', 'index.html'));
+    });
 
     app.listen(env.PORT, () => {
         logger.info(`Hamstery running at port ${env.PORT}`);
