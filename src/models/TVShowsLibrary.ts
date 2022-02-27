@@ -6,6 +6,7 @@ import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, ge
 import { getTVShowDetails, searchTVShowsAll, TMDB_IMAGE185_URL } from '../utils/TMDB.js';
 import logger from '../utils/Logger.js';
 import { refreshPlexLibraryPartially } from '../utils/Plex.js';
+import { DowndloadTask } from './DownloadTask.js';
 
 const showTitleRegex = /^(.*?) ?\((\d{4})\)$/;
 
@@ -20,22 +21,22 @@ export enum EpisodeStatus {
 };
 
 /* Typescript types definition */
-interface IEpisode extends mongoose.Types.Subdocument {
+export interface IEpisode extends mongoose.Types.Subdocument {
     status: EpisodeStatus
     episodeNumber: number,
     path: string,
 }
-interface ISeason extends mongoose.Types.Subdocument {
+export interface ISeason extends mongoose.Types.Subdocument {
     seasonNumber: number,
     episodes: mongoose.Types.DocumentArray<IEpisode>
 };
 
-interface IMetaSource {
+export interface IMetaSource {
     type: SourceType,
     id: string
 };
 
-interface ITVShow extends mongoose.Types.Subdocument {
+export interface ITVShow extends mongoose.Types.Subdocument {
     localPath: string,
     name: string,
     yearReleased: number,
@@ -44,11 +45,11 @@ interface ITVShow extends mongoose.Types.Subdocument {
     seasons: mongoose.Types.DocumentArray<ISeason>
 };
 
-interface IStorage extends mongoose.Types.Subdocument {
+export interface IStorage extends mongoose.Types.Subdocument {
     directory: string,
 };
 
-interface ITVShowsLibrary extends mongoose.Document {
+export interface ITVShowsLibrary extends mongoose.Document {
     name: string,
     storage: mongoose.Types.DocumentArray<IStorage>,
     shows: mongoose.Types.DocumentArray<ITVShow>,
@@ -58,8 +59,10 @@ interface ITVShowsLibrary extends mongoose.Document {
     getShow: (this: ITVShowsLibrary, show_id: string) => ITVShow,
     getSeason: (this: ITVShowsLibrary, show_id: string, season_number: number) => ISeason,
     getEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => IEpisode,
-    checkEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => [string, IEpisode],
-    addEpisodeFromLocalFile: (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number) => Promise<string>,
+    checkEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number, status: EpisodeStatus) => [string, IEpisode],
+    resetEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => Promise<void>,
+    addEpisodeFromLocalFile: (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number, status: EpisodeStatus) => Promise<string>,
+    addEpisodeFromMagnet: (this: ITVShowsLibrary, magnet_link: string, show_id: string, season_number: number, episode_number: number) => Promise<[string, string]>,
 };
 
 interface TVShowsLibraryModel extends mongoose.Model<ITVShowsLibrary> {
@@ -104,6 +107,7 @@ const TVShowsLibrarySchema = {
 
 const TVShowsLibraryMongoSchema = new mongoose.Schema<ITVShowsLibrary, TVShowsLibraryModel>(TVShowsLibrarySchema);
 
+// Known issue: refresh will cause downloading tasks to fail
 TVShowsLibraryMongoSchema.methods.refresh = async function (this: ITVShowsLibrary) {
     logger.info(`Refresh Library "${this.name}": ${this.storage.map(s => s.directory)}`);
 
@@ -182,13 +186,22 @@ TVShowsLibraryMongoSchema.methods.getEpisode = function (this: ITVShowsLibrary, 
     return season?.episodes[episode_idx];
 }
 
-TVShowsLibraryMongoSchema.methods.checkEpisode = function (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) {
+TVShowsLibraryMongoSchema.methods.checkEpisode = function (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number, status: EpisodeStatus) {
     const episode = this.getEpisode(show_id, season_number, episode_number);
     if (!episode)
         return ['Episode does not exist'];
-    if (episode.status !== EpisodeStatus.MISSING)
-        return ['Episode already exist'];
+    if (episode.status !== status)
+        return ['Episode cannot be modified'];
     return ['success', episode];
+}
+
+TVShowsLibraryMongoSchema.methods.resetEpisode = function (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) {
+    const episode = this.getEpisode(show_id, season_number, episode_number);
+    if (!episode)
+        return;
+    episode.status = EpisodeStatus.MISSING;
+    episode.path = '';
+    this.save();
 }
 
 TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrary, storage_id: string, tmdb_id: string, language: string) {
@@ -232,8 +245,8 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
 }
 
 TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
-    async function (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number) {
-        const [checkResult, episode] = this.checkEpisode(show_id, season_number, episode_number);
+    async function (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number, status: EpisodeStatus) {
+        const [checkResult, episode] = this.checkEpisode(show_id, season_number, episode_number, status);
         if (checkResult !== 'success')
             return checkResult;
         const season = episode.parent() as ISeason;
@@ -257,7 +270,7 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
             if (!newFilename.includes(epLabel)) {
                 newFilename = `[${epLabel}] ${newFilename}`
             }
-            await fs.promises.rename(path.resolve(fileDir, f), path.resolve(newPath, newFilename));
+            await fs.promises.rename(path.resolve(fileDir, f), path.resolve(newPath, newFilename)); /* XXX: Consider using symbolic link instead? */
             return newFilename;
         }));
         /* Save in database */
@@ -266,6 +279,18 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
         refreshPlexLibraryPartially('show', newPath);
         this.save();
         return "success";
+    }
+
+TVShowsLibraryMongoSchema.methods.addEpisodeFromMagnet =
+    async function (this: ITVShowsLibrary, magnet_link: string, show_id: string, season_number: number, episode_number: number) {
+        const [checkResult, episode] = this.checkEpisode(show_id, season_number, episode_number, EpisodeStatus.MISSING);
+        if (checkResult !== 'success')
+            return [checkResult];
+        const id = await DowndloadTask.magnetDownloadTVShowEpisode(magnet_link, this.name, show_id, season_number, episode_number);
+        episode.status = EpisodeStatus.DOWNLOADING;
+        episode.path = id;
+        await this.save();
+        return ['success', id];
     }
 
 TVShowsLibraryMongoSchema.statics.getAll = async function () {

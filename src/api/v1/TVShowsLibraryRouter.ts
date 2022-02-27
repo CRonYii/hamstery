@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { body, oneOf, param } from 'express-validator';
-import { TVShowsLibrary } from '../../models/TVShowsLibrary.js';
+import { EpisodeStatus, TVShowsLibrary } from '../../models/TVShowsLibrary.js';
 import { isVideoFile } from '../../utils/FileUtil.js';
 import logger from '../../utils/Logger.js';
 import { paramIsValidDirectory, paramIsValidFile, validate } from '../../utils/RouterUtil.js';
@@ -169,17 +169,16 @@ libraryRouter.put('/:name/:show_id/:season_number/:episode_number',
                 return res.status(400).json({ result: 'error', reason: `Library ${name} does not exist` });
             const { filename, magnet_link } = req.body;
             if (filename) {
-                const msg = await lib.addEpisodeFromLocalFile(filename, show_id, seasonNumber, episodeNumber);
+                const msg = await lib.addEpisodeFromLocalFile(filename, show_id, seasonNumber, episodeNumber, EpisodeStatus.MISSING);
                 if (msg == 'success')
                     return res.status(200).json({ result: 'success' });
                 else
                     return res.status(400).json({ result: 'error', reason: msg });
             } else if (magnet_link) {
-                const [checkResult, episode] = lib.checkEpisode(show_id, seasonNumber, episodeNumber);
+                const [checkResult, id] = await lib.addEpisodeFromMagnet(magnet_link, show_id, seasonNumber, episodeNumber);
                 if (checkResult !== 'success')
                     return res.status(400).json({ result: 'error', reason: checkResult });
-                console.log(`Download to ${episode.episodeNumber}`);
-                return res.status(200).json({ result: 'success' });
+                return res.status(200).json({ result: 'success', id });
             }
         } catch (e) {
             logger.error(e);

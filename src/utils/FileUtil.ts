@@ -51,6 +51,10 @@ export const toPathObject = (d: string) => {
     };
 }
 
+export const removeFile = async (path: string) => {
+    await fs.promises.unlink(path);
+}
+
 export const isSubdir = (parent: string, dir: string) => {
     const relative = path.relative(parent, dir);
 

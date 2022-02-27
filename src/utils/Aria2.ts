@@ -2,6 +2,7 @@
 import logger from './Logger.js';
 import _ from 'lodash';
 import { DowndloadTask } from '../models/DownloadTask.js';
+import { removeFile } from './FileUtil.js';
 
 let aria2: any;
 let connectionPromise: Promise<void> = Promise.resolve();
@@ -68,6 +69,24 @@ export const Aria2 = {
     tellStopped: function (offset: number, num: number, keys?: string[]) {
         return Aria2.call('tellStopped', offset, num, keys);
     },
+    addUri: function (uris: string[], options?: any) {
+        return Aria2.call('addUri', uris, options);
+    },
+    remove: async function (gid: string, deleteFiles = false) {
+        await Aria2.call('remove', gid);
+        if (deleteFiles) {
+            const { files } = await Aria2.tellStatus(gid, ['files']);
+            files.forEach(({ path }) => {
+                removeFile(path);
+            });
+        }
+    },
+    changeOption: function (gid: string, options: any) {
+        return Aria2.call('changeOption', gid, options);
+    },
+    getOption: function (gid: string) {
+        return Aria2.call('getOption', gid);
+    },
 };
 
 export const initializeAria = async (aria2Client) => {
@@ -86,24 +105,25 @@ export const initializeAria = async (aria2Client) => {
         Aria2.connect();
     });
 
-    aria2.on('onDownloadComplete', async ([gid]) => {
-        const task = await DowndloadTask.findOne({ gid }).exec();
-        task?.success();
+    aria2.on('onDownloadComplete', async (tasks: any[]) => {
+        tasks.forEach(async ({ gid }) => {
+            const task = await DowndloadTask.findOne({ gid }).exec();
+            task?.success();
+        });
     });
 
-    aria2.on('onBtDownloadComplete', async ([gid]) => {
-        const task = await DowndloadTask.findOne({ gid }).exec();
-        task?.success();
+    aria2.on('onDownloadStop', async (tasks: any[]) => {
+        tasks.forEach(async ({ gid }) => {
+            const task = await DowndloadTask.findOne({ gid }).exec();
+            task?.cancel();
+        });
     });
 
-    aria2.on('onDownloadStop', async ([gid]) => {
-        const task = await DowndloadTask.findOne({ gid }).exec();
-        task?.cancel();
-    });
-
-    aria2.on('onDownloadError', async ([gid]) => {
-        const task = await DowndloadTask.findOne({ gid }).exec();
-        task?.fail();
+    aria2.on('onDownloadError', async (tasks: any[]) => {
+        tasks.forEach(async ({ gid }) => {
+            const task = await DowndloadTask.findOne({ gid }).exec();
+            task?.fail();
+        });
     });
     try {
         await Aria2.connect();
