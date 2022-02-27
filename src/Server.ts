@@ -11,7 +11,7 @@ async function startServer() {
     const app = express();
 
     app.use(express.json());
-
+    app.use(express.static('public'));
     app.use("/api", api(authenticationChecker(env.SECRET)));
 
     app.listen(env.PORT, () => {
