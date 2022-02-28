@@ -47,6 +47,7 @@ taskHandlers[DownloadTaskType.MAGNET_SINGLE_EPISODE] = {
         const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
         const lib = await TVShowsLibrary.findOne({ name: libName });
         lib?.setEpisode(EpisodeStatus.MISSING, '', showId, seasonNumber, episodeNumber);
+        await Aria2.remove(task.gid, true);
     }
 };
 
@@ -73,6 +74,7 @@ taskHandlers[DownloadTaskType.DOWNLOAD_SINGLE_EPISODE] = {
         const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
         const lib = await TVShowsLibrary.findOne({ name: libName });
         lib?.setEpisode(EpisodeStatus.MISSING, '', showId, seasonNumber, episodeNumber);
+        await Aria2.remove(task.gid, true);
     }
 };
 
