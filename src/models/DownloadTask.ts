@@ -29,21 +29,24 @@ taskHandlers[DownloadTaskType.MAGNET_SINGLE_EPISODE] = {
             return Promise.reject('Expected one video file, but found none or more than one.');
         }
         /* Track followed task */
-        await new DowndloadTask({
+        const downloadTask = await new DowndloadTask({
             gid: followedBy,
             type: DownloadTaskType.DOWNLOAD_SINGLE_EPISODE,
             parameters: task.parameters
         }).save();
+        const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
+        const lib = await TVShowsLibrary.findOne({ name: libName });
+        lib.setEpisode(EpisodeStatus.DOWNLOADING, downloadTask._id, showId, seasonNumber, episodeNumber);
     },
     fail: async (task: IDownloadTask) => {
         const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
         const lib = await TVShowsLibrary.findOne({ name: libName });
-        lib?.resetEpisode(showId, seasonNumber, episodeNumber);
+        lib?.setEpisode(EpisodeStatus.MISSING, '', showId, seasonNumber, episodeNumber);
     },
     cancel: async (task: IDownloadTask) => {
         const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
         const lib = await TVShowsLibrary.findOne({ name: libName });
-        lib?.resetEpisode(showId, seasonNumber, episodeNumber);
+        lib?.setEpisode(EpisodeStatus.MISSING, '', showId, seasonNumber, episodeNumber);
     }
 };
 
@@ -64,12 +67,12 @@ taskHandlers[DownloadTaskType.DOWNLOAD_SINGLE_EPISODE] = {
     fail: async (task: IDownloadTask) => {
         const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
         const lib = await TVShowsLibrary.findOne({ name: libName });
-        lib?.resetEpisode(showId, seasonNumber, episodeNumber);
+        lib?.setEpisode(EpisodeStatus.MISSING, '', showId, seasonNumber, episodeNumber);
     },
     cancel: async (task: IDownloadTask) => {
         const { libName, showId, seasonNumber, episodeNumber } = JSON.parse(task.parameters);
         const lib = await TVShowsLibrary.findOne({ name: libName });
-        lib?.resetEpisode(showId, seasonNumber, episodeNumber);
+        lib?.setEpisode(EpisodeStatus.MISSING, '', showId, seasonNumber, episodeNumber);
     }
 };
 
@@ -80,6 +83,7 @@ interface IDownloadTask extends mongoose.Document {
     success: (this: IDownloadTask) => Promise<void>,
     fail: (this: IDownloadTask) => Promise<void>,
     cancel: (this: IDownloadTask) => Promise<void>,
+    status: (this: IDownloadTask, keys?: string[]) => Promise<any>,
 };
 
 interface DownloadTaskModel extends mongoose.Model<IDownloadTask> {
@@ -128,6 +132,10 @@ DownloadTaskMongoSchema.methods.cancel = async function (this: IDownloadTask) {
     }
 }
 
+DownloadTaskMongoSchema.methods.status = async function (this: IDownloadTask, keys?: string[]) {
+    return await Aria2.tellStatus(this.gid, keys);
+}
+
 DownloadTaskMongoSchema.statics.magnetDownloadTVShowEpisode = async function (magnetLink: string, libName: string, showId: string, seasonNumber: number, episodeNumber: number) {
     const gid = await Aria2.addUri([magnetLink], { 'follow-torrent': 'mem' });
     const task = await new DowndloadTask({
@@ -135,7 +143,7 @@ DownloadTaskMongoSchema.statics.magnetDownloadTVShowEpisode = async function (ma
         type: DownloadTaskType.MAGNET_SINGLE_EPISODE,
         parameters: JSON.stringify({ libName, showId, seasonNumber, episodeNumber })
     }).save();
-    return task.id;
+    return task._id;
 };
 
 const DowndloadTask = mongoose.model<IDownloadTask, DownloadTaskModel>('DowndloadTask', DownloadTaskMongoSchema);

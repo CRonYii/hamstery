@@ -186,4 +186,25 @@ libraryRouter.put('/:name/:show_id/:season_number/:episode_number',
         }
     });
 
+libraryRouter.get('/:name/:show_id/:season_number/:episode_number',
+    validate([
+        param('season_number').isInt({ min: 0 }),
+        param('episode_number').isInt({ min: 1 }),
+    ]),
+    async (req: Request, res: Response) => {
+        let { name, show_id, season_number, episode_number } = req.params;
+        const seasonNumber = Number(season_number);
+        const episodeNumber = Number(episode_number);
+        try {
+            const lib = await TVShowsLibrary.findOne({ name });
+            if (!lib)
+                return res.status(400).json({ result: 'error', reason: `Library ${name} does not exist` });
+            const episode = lib.getEpisode(show_id, seasonNumber, episodeNumber);
+            return res.status(200).json(episode);
+        } catch (e) {
+            logger.error(e);
+            return res.status(400).json({ result: 'error', reason: e.message });
+        }
+    });
+
 export default libraryRouter;

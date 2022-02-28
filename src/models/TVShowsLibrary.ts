@@ -60,7 +60,7 @@ export interface ITVShowsLibrary extends mongoose.Document {
     getSeason: (this: ITVShowsLibrary, show_id: string, season_number: number) => ISeason,
     getEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => IEpisode,
     checkEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number, status: EpisodeStatus) => [string, IEpisode],
-    resetEpisode: (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) => Promise<void>,
+    setEpisode: (this: ITVShowsLibrary, status: EpisodeStatus, path: string, show_id: string, season_number: number, episode_number: number) => Promise<void>,
     addEpisodeFromLocalFile: (this: ITVShowsLibrary, filename: string, show_id: string, season_number: number, episode_number: number, status: EpisodeStatus) => Promise<string>,
     addEpisodeFromMagnet: (this: ITVShowsLibrary, magnet_link: string, show_id: string, season_number: number, episode_number: number) => Promise<[string, string]>,
 };
@@ -195,12 +195,12 @@ TVShowsLibraryMongoSchema.methods.checkEpisode = function (this: ITVShowsLibrary
     return ['success', episode];
 }
 
-TVShowsLibraryMongoSchema.methods.resetEpisode = function (this: ITVShowsLibrary, show_id: string, season_number: number, episode_number: number) {
+TVShowsLibraryMongoSchema.methods.setEpisode = function (this: ITVShowsLibrary, status: EpisodeStatus, path: string, show_id: string, season_number: number, episode_number: number) {
     const episode = this.getEpisode(show_id, season_number, episode_number);
     if (!episode)
         return;
-    episode.status = EpisodeStatus.MISSING;
-    episode.path = '';
+    episode.status = status;
+    episode.path = path;
     this.save();
 }
 
