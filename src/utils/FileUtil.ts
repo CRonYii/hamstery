@@ -68,7 +68,7 @@ const audioRegex = new RegExp('(\.flac|\.mka)$');
 export const isAudioFile = (f: string) => f.match(audioRegex) != null;
 const subtitleRegex = new RegExp('(\.ass|\.srt)$');
 export const isSubtitleFile = (f: string) => f.match(subtitleRegex) != null;
-
+export const makeValidDirectoryName = (name: string): string => name.replace(/[\\/<>:"|\?\*]/, '')
 export const getShowFolderName = (name: string, date: string) => `${name} (${new Date(date).getFullYear()})`;
 export const getSeasonFolderName = (season_number: number) => season_number == 0 ? 'Specials' : `Season ${season_number}`;
 

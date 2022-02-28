@@ -138,7 +138,7 @@ libraryRouter.post('/:name/:storage_id', validate([
             else
                 return res.status(400).json({ result: 'error', reason: msg });
         } catch (e) {
-            logger.error(e);
+            logger.error('Add show to library failed: ' + e?.message);
             return res.status(400).json({ result: 'error', reason: e.message });
         }
     });

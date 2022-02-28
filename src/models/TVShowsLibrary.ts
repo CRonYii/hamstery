@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
 
-import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName, isAudioFile, isSubtitleFile } from '../utils/FileUtil.js';
+import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName, isAudioFile, isSubtitleFile, makeValidDirectoryName } from '../utils/FileUtil.js';
 import { getTVShowDetails, searchTVShowsAll, TMDB_IMAGE185_URL } from '../utils/TMDB.js';
 import logger from '../utils/Logger.js';
 import { refreshPlexLibraryPartially } from '../utils/Plex.js';
@@ -210,7 +210,7 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
         return ['Storage does not exist'];
     const data = await getTVShowDetails(tmdb_id, language);
 
-    const localPath = path.resolve(storage.directory, getShowFolderName(data.name, data.first_air_date));
+    const localPath = path.resolve(storage.directory, makeValidDirectoryName(getShowFolderName(data.name, data.first_air_date)));
 
     if (this.shows.findIndex(show => show.localPath == localPath) != -1)
         return ['Show already existed'];
