@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
 
-import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName, isAudioFile, isSubtitleFile, makeValidDirectoryName } from '../utils/FileUtil.js';
+import { getSeasonEpisodeLabel, isVideoFile, isValidDirectory, listDirectory, getSeasonFolderName, createDirIfNotExist, getShowFolderName, isAudioFile, isSubtitleFile, makeValidDirectoryName, saveHamsteryJSON, readHamsteryJSON } from '../utils/FileUtil.js';
 import { getTVShowDetails, searchTVShowsAll, TMDB_IMAGE185_URL } from '../utils/TMDB.js';
 import logger from '../utils/Logger.js';
 import { refreshPlexLibraryPartially } from '../utils/Plex.js';
@@ -121,49 +121,65 @@ TVShowsLibraryMongoSchema.methods.refresh = async function (this: ITVShowsLibrar
                 const result = showDirectory.match(showTitleRegex);
                 if (!(await isValidDirectory(fullShowDirectory)) || result == null)
                     return null;
-                return { fullShowDirectory, name: result[1], yearReleased: result[2] };
+                const json = await readHamsteryJSON(fullShowDirectory);
+                return {
+                    fullShowDirectory, name: result[1], yearReleased: result[2],
+                    metaSource: {
+                        id: json?.id || '',
+                        type: json?.type || SourceType.TMDB,
+                    }
+                };
             })))
             .filter((showDirectory) => showDirectory != null);
     }))).flat();
 
     /* Retrieve TV Show data from TMDB and save in database */
     await Promise.all(shows.map(async (showDetails) => {
-        const { fullShowDirectory, name, yearReleased } = showDetails;
-        const metaSource: IMetaSource = { type: SourceType.TMDB, id: '' };
+        const { fullShowDirectory, name, yearReleased, metaSource } = showDetails;
 
-        const results = await searchTVShowsAll(name);
-        metaSource.id = results.find((r) => new Date(r.first_air_date).getFullYear().toString() == yearReleased)?.id;
+        try {
+            if (!metaSource.id) {
+                if (metaSource.type === SourceType.TMDB) {
+                    const results = await searchTVShowsAll(name);
+                    metaSource.id = results.find((r) => new Date(r.first_air_date).getFullYear().toString() == yearReleased)?.id;
+                }
+            }
 
-        // Could not find this show
-        if (!metaSource.id)
-            return;
-        const data = await getTVShowDetails(metaSource.id);
-        const poster = data.poster_path ? TMDB_IMAGE185_URL + data.poster_path : undefined;
-        const show = this.shows.create({
-            localPath: fullShowDirectory,
-            name,
-            yearReleased,
-            metaSource,
-            seasons: [],
-            poster
-        });
-
-        await Promise.all(data.seasons.map(async ({ season_number, episode_count }) => {
-            const seasonName = getSeasonFolderName(season_number);
-            const locaFiles = (await listDirectory(path.resolve(fullShowDirectory, seasonName))).filter(isVideoFile);
-            const season = show.seasons.create({ seasonNumber: season_number, episodes: [] });
-            new Array(episode_count).fill('').forEach((_, i) => {
-                const path = locaFiles.find(f => f.includes(getSeasonEpisodeLabel(season_number, i + 1))) || ''
-                season.episodes.push({
-                    episodeNumber: i + 1,
-                    path,
-                    status: path === '' ? EpisodeStatus.MISSING : EpisodeStatus.DOWNLOAED
+            // Could not find this show
+            if (!metaSource.id)
+                return;
+            if (metaSource.type === SourceType.TMDB) {
+                const data = await getTVShowDetails(metaSource.id);
+                const poster = data.poster_path ? TMDB_IMAGE185_URL + data.poster_path : undefined;
+                const show = this.shows.create({
+                    localPath: fullShowDirectory,
+                    name,
+                    yearReleased,
+                    metaSource,
+                    seasons: [],
+                    poster
                 });
-            });
-            show.seasons.push(season);
-        }));
 
-        this.shows.push(show);
+                await Promise.all(data.seasons.map(async ({ season_number, episode_count }) => {
+                    const seasonName = getSeasonFolderName(season_number);
+                    const locaFiles = (await listDirectory(path.resolve(fullShowDirectory, seasonName))).filter(isVideoFile);
+                    const season = show.seasons.create({ seasonNumber: season_number, episodes: [] });
+                    new Array(episode_count).fill('').forEach((_, i) => {
+                        const path = locaFiles.find(f => f.includes(getSeasonEpisodeLabel(season_number, i + 1))) || ''
+                        season.episodes.push({
+                            episodeNumber: i + 1,
+                            path,
+                            status: path === '' ? EpisodeStatus.MISSING : EpisodeStatus.DOWNLOAED
+                        });
+                    });
+                    show.seasons.push(season);
+                }));
+
+                this.shows.push(show);
+            }
+        } catch (e) { 
+            logger.error('Failed to scan directory: ' + e?.message);
+        }
     }));
 };
 
@@ -239,6 +255,7 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
     }));
 
     await createDirIfNotExist(localPath);
+    await saveHamsteryJSON(localPath, show.metaSource);
     this.shows.push(show);
     this.save();
     return ['success', show._id];

@@ -86,3 +86,11 @@ export const getSeasonEpisodeLabel = (season_number: number, episode_number: num
     episode_number = formatShowNumber(episode_number)
     return `S${season_number}E${episode_number}`
 }
+
+const hamsteryJSON = 'hamstery.json';
+
+export const readHamsteryJSON = (dir: string) => fs.promises.readFile(path.resolve(dir, hamsteryJSON))
+    .then((data) => JSON.parse(data.toString()))
+    .catch(() => null);
+
+export const saveHamsteryJSON = (dir: string, data: any) => fs.promises.writeFile(path.resolve(dir, hamsteryJSON), JSON.stringify(data));
