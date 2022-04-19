@@ -39,6 +39,7 @@ export interface IMetaSource {
 export interface ITVShow extends mongoose.Types.Subdocument {
     localPath: string,
     name: string,
+    firstAirDate: string,
     yearReleased: number,
     metaSource: IMetaSource,
     poster?: string,
@@ -89,6 +90,7 @@ const MetaSourceSchema = {
 const TVShowSchema = {
     localPath: { type: String, required: true },
     name: { type: String, required: true },
+    firstAirDate: String,
     yearReleased: Number,
     metaSource: MetaSourceSchema,
     poster: String,
@@ -155,6 +157,7 @@ TVShowsLibraryMongoSchema.methods.refresh = async function (this: ITVShowsLibrar
                     localPath: fullShowDirectory,
                     name,
                     yearReleased,
+                    firstAirDate: data.first_air_date,
                     metaSource,
                     seasons: [],
                     poster
@@ -237,6 +240,7 @@ TVShowsLibraryMongoSchema.methods.addShow = async function (this: ITVShowsLibrar
     const show = this.shows.create({
         localPath,
         name: data.name,
+        firstAirDate: data.first_air_date,
         yearReleased,
         metaSource: {
             type: SourceType.TMDB,
@@ -283,11 +287,9 @@ TVShowsLibraryMongoSchema.methods.addEpisodeFromLocalFile =
         await createDirIfNotExist(newPath);
         /* Move all files to destination folder */
         const [movedVideoPath] = await Promise.all(files.map(async (f) => {
-            let newFilename = f;
-            if (!newFilename.includes(epLabel)) {
-                newFilename = `[${epLabel}] ${newFilename}`
-            }
-            await fs.promises.rename(path.resolve(fileDir, f), path.resolve(newPath, newFilename)); /* XXX: Consider using symbolic link instead? */
+            const newFilename = `${show.name} - ${epLabel}.${path.extname(f)}`;
+            /* XXX: Consider using symbolic link instead? */
+            await fs.promises.rename(path.resolve(fileDir, f), path.resolve(newPath, newFilename));
             return newFilename;
         }));
         /* Save in database */
